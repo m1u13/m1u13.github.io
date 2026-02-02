@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FX_CALC</title>
+    <style>
+        :root {
+            --bg-color: #050505;
+            --terminal-green: #00ff41;
+            --terminal-cyan: #00f3ff;
+            --terminal-red: #ff0055;
+            --terminal-blue: #0088ff;
+            --terminal-dim: #004411;
+            --font-stack: "Menlo", "Courier New", monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--terminal-green);
+            font-family: var(--font-stack);
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            -webkit-font-smoothing: none;
+            font-size: 14px;
+        }
+
+        /* Scanline effect */
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 999;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .container {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 10px;
+            padding-bottom: 20px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.0rem;
+            border-bottom: 2px solid var(--terminal-green);
+            padding-bottom: 5px;
+            margin: 10px 0 15px 0;
+            letter-spacing: 2px;
+            color: var(--terminal-cyan);
+        }
+
+        /* Controls */
+        .global-controls {
+            margin-bottom: 15px;
+            background: rgba(0, 20, 0, 0.5);
+            padding: 8px;
+            border: 2px solid var(--terminal-dim);
+            font-size: 0.8rem;
+        }
+
+        .cyber-check {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .cyber-check input { display: none; }
+        .checkmark {
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--terminal-cyan);
+            margin-right: 8px;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .cyber-check input:checked + .checkmark::after {
+            content: 'X';
+            position: absolute;
+            top: -4px; left: 1px;
+            color: var(--terminal-cyan);
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* Position Card Compact */
+        .position-card {
+            border: 2px solid var(--terminal-dim);
+            padding: 8px;
+            margin-bottom: 10px;
+            background: rgba(0, 10, 0, 0.9);
+            position: relative;
+            box-shadow: 0 0 5px rgba(0, 255, 65, 0.1);
+        }
+        
+        .card-top-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+
+        .pos-id {
+            font-size: 0.75rem;
+            color: var(--terminal-green);
+            opacity: 0.7;
+            width: 40px;
+        }
+
+        .bs-toggle {
+            display: flex;
+            flex-grow: 1;
+            border: 2px solid var(--terminal-dim);
+            cursor: pointer;
+            height: 28px;
+        }
+        .bs-option {
+            flex: 1;
+            text-align: center;
+            line-height: 24px;
+            font-size: 0.75rem;
+            transition: 0.2s;
+            color: #555;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .bs-option.sell.active {
+            background: var(--terminal-blue);
+            color: #fff;
+            text-shadow: 0 0 5px var(--terminal-blue);
+            font-weight: bold;
+        }
+        .bs-option.buy.active {
+            background: var(--terminal-red);
+            color: #fff;
+            text-shadow: 0 0 5px var(--terminal-red);
+            font-weight: bold;
+        }
+
+        /* 削除ボタン */
+        .delete-btn {
+            background: rgba(255, 60, 60, 0.15);
+            border: 2px solid #aa4444;
+            color: #ff9999;
+            cursor: pointer;
+            font-size: 1.0rem;
+            padding: 0;
+            width: 32px;
+            height: 28px;
+            line-height: 24px;
+            font-weight: bold;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .delete-btn:hover {
+            background: rgba(255, 0, 0, 0.3);
+            border-color: var(--terminal-red);
+            color: #fff;
+        }
+
+        .input-grid {
+            display: grid;
+            /* QTYの幅を狭くし、価格入力欄のスペースを確保 */
+            grid-template-columns: 0.6fr 1.2fr 1.2fr;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-size: 0.6rem;
+            color: #888;
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Stepper Input Styles */
+        .stepper-wrapper {
+            display: flex;
+            align-items: center;
+            border: 2px solid #333; 
+            background: #000;
+        }
+        
+        .simple-input {
+            width: 100%;
+            background: #000;
+            border: 2px solid #333;
+            color: var(--terminal-cyan);
+            font-family: var(--font-stack);
+            font-size: 0.9rem;
+            padding: 4px;
+            outline: none;
+            text-align: right;
+            border-radius: 0;
+            -webkit-appearance: none;
+            /* 高さ合わせ */
+            height: 30px; 
+        }
+        .simple-input:focus {
+            border-color: var(--terminal-green);
+        }
+
+        .step-btn {
+            background: #111;
+            border: none;
+            color: var(--terminal-green);
+            /* ボタン幅を縮小して入力エリアを広げる */
+            width: 22px; 
+            height: 30px;
+            font-size: 1.0rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            padding: 0; /* 余白除去 */
+        }
+        .step-btn:active {
+            background: var(--terminal-green);
+            color: #000;
+        }
+
+        .stepper-input {
+            flex: 1;
+            width: 100%;
+            background: #000;
+            border: none;
+            border-left: 1px solid #333;
+            border-right: 1px solid #333;
+            color: var(--terminal-cyan);
+            font-family: var(--font-stack);
+            /* フォントサイズを少し小さくして桁あふれ防止 */
+            font-size: 13px;
+            padding: 4px 0;
+            outline: none;
+            text-align: center;
+            border-radius: 0;
+            -webkit-appearance: none;
+            height: 30px;
+            min-width: 0; /* Flexbox内での縮小許可 */
+        }
+
+        .stepper-wrapper:focus-within {
+            border-color: var(--terminal-green);
+        }
+        .stepper-wrapper:focus-within .stepper-input {
+            border-color: var(--terminal-green);
+        }
+        .stepper-input.synced-locked {
+            color: #555;
+            background: #080808;
+        }
+
+        .card-result {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.03);
+            padding: 4px 8px;
+            border-radius: 2px;
+        }
+        .pips-display {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        .pl-display {
+            font-size: 1.0rem;
+            font-weight: bold;
+        }
+
+        .footer {
+            flex-shrink: 0;
+            background: #000;
+            border-top: 2px solid var(--terminal-cyan);
+            padding: 10px;
+            box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            position: relative;
+            z-index: 100;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+        
+        .add-btn {
+            background: #0a0a0a;
+            color: var(--terminal-green);
+            border: 2px solid var(--terminal-green);
+            padding: 10px;
+            width: 100%;
+            font-family: var(--font-stack);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+        }
+        .add-btn:active {
+            background: var(--terminal-green);
+            color: #000;
+        }
+
+        .win { color: var(--terminal-green); }
+        .lose { color: var(--terminal-red); }
+        .hidden { display: none; }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>FX_CALC</h1>
+
+    <div class="global-controls">
+        <label class="cyber-check">
+            <input type="checkbox" id="syncCheck" onchange="toggleSync()">
+            <span class="checkmark"></span>
+            SYNC EXIT (POS 1)
+        </label>
+    </div>
+
+    <div id="positions-list"></div>
+</div>
+
+<div class="footer">
+    <div class="total-row">
+        <span style="font-size:0.9rem; color:#888;">TOTAL P/L</span>
+        <span id="grand-total">¥0</span>
+    </div>
+    <button class="add-btn" onclick="addPosition()">+ ADD POS</button>
+</div>
+
+<script>
+    let positions = [];
+    let nextId = 1;
+    let isSynced = false;
+    let currentFetchedRate = null;
+
+    window.onload = function() {
+        addPosition();
+        fetchRate();
+    };
+
+    async function fetchRate() {
+        try {
+            const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+            const data = await res.json();
+            
+            if (data && data.rates && data.rates.JPY) {
+                // 3桁固定で取得
+                const rate = parseFloat(data.rates.JPY).toFixed(3);
+                currentFetchedRate = rate;
+                
+                if (positions.length > 0) {
+                    const p1 = positions[0];
+                    if (p1.open === '') updateData(p1.id, 'open', rate);
+                    if (p1.close === '') updateData(p1.id, 'close', rate);
+                    renderPositions();
+                }
+            }
+        } catch (error) {
+            console.error("Rate fetch failed:", error);
+        }
+    }
+
+    function toggleSync() {
+        isSynced = document.getElementById('syncCheck').checked;
+        renderPositions();
+        if (isSynced && positions.length > 0) {
+            updateAllClosePrices(positions[0].close);
+        }
+    }
+
+    function addPosition() {
+        let defaultClose = '';
+        let defaultOpen = '';
+
+        if (isSynced && positions.length > 0) {
+            defaultClose = positions[0].close;
+        } else if (currentFetchedRate) {
+            defaultClose = currentFetchedRate;
+        }
+
+        if (currentFetchedRate) {
+            defaultOpen = currentFetchedRate;
+        }
+
+        const pos = {
+            id: nextId++,
+            type: 'buy',
+            size: 1, // 初期値は1枚 (1000通貨)
+            open: defaultOpen,
+            close: defaultClose
+        };
+        positions.push(pos);
+        renderPositions();
+        calculateAll();
+        
+        setTimeout(() => {
+            const container = document.querySelector('.container');
+            container.scrollTop = container.scrollHeight;
+        }, 50);
+    }
+
+    function removePosition(id) {
+        if (positions.length <= 1) {
+             return; 
+        }
+        positions = positions.filter(p => p.id !== id);
+        renderPositions();
+        calculateAll();
+    }
+
+    function updateData(id, field, value) {
+        const pos = positions.find(p => p.id === id);
+        if (!pos) return;
+
+        pos[field] = value;
+
+        if (field === 'close' && isSynced) {
+            if (positions.indexOf(pos) === 0) {
+                updateAllClosePrices(value);
+            }
+        }
+        calculateAll();
+    }
+
+    // ボタンによる値の増減 (0.001単位)
+    function adjustValue(id, field, amount) {
+        const pos = positions.find(p => p.id === id);
+        if (!pos) return;
+
+        if (field === 'close' && isSynced && positions.indexOf(pos) !== 0) {
+            return;
+        }
+
+        let val = parseFloat(pos[field]);
+        if (isNaN(val)) val = 0;
+
+        val += amount;
+        
+        // 誤差対策と3桁固定
+        const newVal = Math.round(val * 1000) / 1000;
+        const formatted = newVal.toFixed(3);
+
+        updateData(id, field, formatted);
+        renderPositions(); 
+    }
+
+    function toggleType(id, type) {
+        const pos = positions.find(p => p.id === id);
+        if (pos) {
+            pos.type = type;
+            renderPositions();
+            calculateAll();
+        }
+    }
+
+    function updateAllClosePrices(price) {
+        positions.forEach((p) => {
+            p.close = price;
+            const input = document.getElementById(`close-${p.id}`);
+            if (input) input.value = price;
+        });
+        calculateAll();
+    }
+
+    function calculateAll() {
+        let grandTotal = 0;
+
+        positions.forEach(p => {
+            const open = parseFloat(p.open);
+            const close = parseFloat(p.close);
+            // ここで1000倍して通貨数に変換
+            const size = parseFloat(p.size) * 1000;
+            
+            const pipsEl = document.getElementById(`pips-${p.id}`);
+            const plEl = document.getElementById(`pl-${p.id}`);
+
+            if (isNaN(open) || isNaN(close) || isNaN(size)) {
+                if(pipsEl) pipsEl.innerText = "--";
+                if(plEl) plEl.innerText = "---";
+                return;
+            }
+
+            let profit = 0;
+            const diff = close - open;
+            let pips = 0;
+
+            if (p.type === 'buy') {
+                pips = diff * 100; 
+                profit = diff * size;
+            } else {
+                pips = -diff * 100;
+                profit = -diff * size;
+            }
+
+            if(pipsEl) pipsEl.innerText = `${pips.toFixed(1)} pips`;
+            if(plEl) {
+                // Math.floor(切り捨て)だと負の値で-1.0000001が-2になるため
+                // Math.round(四捨五入)に変更
+                plEl.innerText = `¥${Math.round(profit).toLocaleString()}`;
+                plEl.className = 'pl-display ' + (profit >= 0 ? 'win' : 'lose');
+            }
+            // 合計計算も丸める
+            grandTotal += Math.round(profit);
+        });
+
+        const totalEl = document.getElementById('grand-total');
+        totalEl.innerText = `¥${grandTotal.toLocaleString()}`;
+        totalEl.className = grandTotal >= 0 ? 'win' : 'lose';
+    }
+
+    function renderPositions() {
+        const container = document.getElementById('positions-list');
+        container.innerHTML = '';
+
+        positions.forEach((p, index) => {
+            const isMaster = (index === 0);
+            const isLocked = (isSynced && !isMaster);
+            
+            const closeReadOnly = isLocked ? 'readonly' : '';
+            const closeClass = isLocked ? 'stepper-input synced-locked' : 'stepper-input';
+            const masterLabel = (isSynced && isMaster) ? '<span style="color:#00f3ff">*</span>' : '';
+
+            const sellActive = p.type === 'sell' ? 'active' : '';
+            const buyActive = p.type === 'buy' ? 'active' : '';
+
+            const html = `
+            <div class="position-card" id="card-${p.id}">
+                <div class="card-top-row">
+                    <span class="pos-id">#${index + 1}</span>
+                    <div class="bs-toggle">
+                        <div class="bs-option sell ${sellActive}" onclick="toggleType(${p.id}, 'sell')">SELL</div>
+                        <div class="bs-option buy ${buyActive}" onclick="toggleType(${p.id}, 'buy')">BUY</div>
+                    </div>
+                    <button class="delete-btn" onclick="removePosition(${p.id})">✕</button>
+                </div>
+                
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label>LOTS (x1000)</label>
+                        <input type="number" step="0.1" class="simple-input" value="${p.size}" oninput="updateData(${p.id}, 'size', this.value)">
+                    </div>
+
+                    <div class="input-group">
+                        <label>ENTRY</label>
+                        <div class="stepper-wrapper">
+                            <button class="step-btn" onclick="adjustValue(${p.id}, 'open', -0.001)">-</button>
+                            <input type="number" step="0.001" class="stepper-input" placeholder="--" 
+                                   value="${p.open}" oninput="updateData(${p.id}, 'open', this.value)">
+                            <button class="step-btn" onclick="adjustValue(${p.id}, 'open', 0.001)">+</button>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>EXIT ${masterLabel}</label>
+                        <div class="stepper-wrapper">
+                            ${!isLocked ? `<button class="step-btn" onclick="adjustValue(${p.id}, 'close', -0.001)">-</button>` : '<div style="width:22px;"></div>'}
+                            
+                            <input type="number" id="close-${p.id}" step="0.001" class="${closeClass}" placeholder="--" 
+                                   value="${p.close}" ${closeReadOnly}
+                                   oninput="updateData(${p.id}, 'close', this.value)">
+                            
+                            ${!isLocked ? `<button class="step-btn" onclick="adjustValue(${p.id}, 'close', 0.001)">+</button>` : '<div style="width:22px;"></div>'}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-result">
+                    <span class="pips-display" id="pips-${p.id}">-- pips</span>
+                    <span class="pl-display" id="pl-${p.id}">¥0</span>
+                </div>
+            </div>
+            `;
+            container.innerHTML += html;
+        });
+        calculateAll();
+    }
+</script>
+
+</body>
+</html>
